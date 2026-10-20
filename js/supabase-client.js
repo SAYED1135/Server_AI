@@ -6,11 +6,12 @@ let supabaseClient = null;
 
 function initSupabase() {
   if (typeof supabase === 'undefined') {
-    console.error('مكتبة Supabase غير محملة. تأكد من تضمين سكريبت CDN قبل هذا الملف.');
+    console.error('مكتبة Supabase غير محملة.');
     return null;
   }
   if (!supabaseClient) {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('تم تهيئة اتصال Supabase بنجاح');
   }
   return supabaseClient;
 }
@@ -22,13 +23,16 @@ function getSupabase() {
   return supabaseClient;
 }
 
-// تهيئة تلقائية عند تحميل الملف
+// تهيئة فورية إذا كانت المكتبة متاحة
 if (typeof window !== 'undefined') {
-  // انتظر حتى يتم تحميل مكتبة supabase من CDN
-  const checkSupabase = setInterval(() => {
-    if (typeof supabase !== 'undefined') {
-      initSupabase();
-      clearInterval(checkSupabase);
-    }
-  }, 100);
+  if (typeof supabase !== 'undefined') {
+    initSupabase();
+  } else {
+    const checkSupabase = setInterval(() => {
+      if (typeof supabase !== 'undefined') {
+        initSupabase();
+        clearInterval(checkSupabase);
+      }
+    }, 100);
+  }
 }

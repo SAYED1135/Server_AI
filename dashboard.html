@@ -28,7 +28,7 @@
   </nav>
 
   <div class="max-w-7xl mx-auto px-4 py-12">
-    <!-- تنبيه تسجيل الدخول -->
+    <!-- تنبيه عدم تسجيل الدخول -->
     <div id="auth-notice" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-4 mb-8">
       <div class="flex items-start gap-3">
         <div class="bg-amber-100 text-amber-600 rounded p-1 mt-0.5">⚠️</div>
@@ -42,14 +42,31 @@
       </div>
     </div>
 
-    <!-- محتوى اللوحة -->
+    <!-- رسالة خطأ إذا حدث مشكلة في جلب البيانات -->
+    <div id="error-msg" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+      <div class="flex items-start gap-3">
+        <div class="bg-red-100 text-red-600 rounded p-1 mt-0.5">❌</div>
+        <div>
+          <h4 class="text-red-800 font-bold text-sm">حدث خطأ في جلب السيرفرات</h4>
+          <p id="error-detail" class="text-red-700 text-sm mt-1"></p>
+        </div>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button onclick="location.reload()" class="text-red-800 text-sm font-bold hover:underline">تحديث الصفحة</button>
+      </div>
+    </div>
+
+    <!-- محتوى اللوحة (مخفي حتى يتم التحقق من تسجيل الدخول) -->
     <div id="dashboard-content" class="hidden">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 class="text-2xl font-bold text-slate-900">لوحة التحكم</h1>
           <p id="user-greeting" class="text-slate-500">مرحباً، مستخدم</p>
         </div>
-        <a href="connect.html" class="btn-primary px-6 py-2">إضافة سيرفر جديد</a>
+        <div class="flex gap-2">
+          <button onclick="loadServers()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">تحديث</button>
+          <a href="connect.html" class="btn-primary px-6 py-2">إضافة سيرفر جديد</a>
+        </div>
       </div>
 
       <!-- بطاقات السيرفرات -->
@@ -64,6 +81,18 @@
         <p class="text-sm text-slate-500 mb-6">ابدأ بربط حساب الاستضافة الخاص بك لإدارة سيرفرك من هنا.</p>
         <a href="connect.html" class="btn-primary">ربط حساب استضافة</a>
       </div>
+
+      <!-- مؤشر تحميل -->
+      <div id="loading-state" class="hidden text-center py-16">
+        <div class="flex justify-center">
+          <div class="flex space-x-1">
+            <div class="w-3 h-3 bg-indigo-600 rounded-full animate-[bounce_1s_infinite]"></div>
+            <div class="w-3 h-3 bg-indigo-600 rounded-full animate-[bounce_1s_infinite][animation-delay:0.2s]"></div>
+            <div class="w-3 h-3 bg-indigo-600 rounded-full animate-[bounce_1s_infinite][animation-delay:0.4s]"></div>
+          </div>
+        </div>
+        <p class="mt-4 text-slate-500">جاري تحميل السيرفرات...</p>
+      </div>
     </div>
   </div>
 
@@ -77,6 +106,17 @@
   <script>
     let supabase = null;
 
+    // عناصر الصفحة
+    const authNotice = document.getElementById('auth-notice');
+    const dashboardContent = document.getElementById('dashboard-content');
+    const errorMsg = document.getElementById('error-msg');
+    const errorDetail = document.getElementById('error-detail');
+    const userGreeting = document.getElementById('user-greeting');
+    const btnLogout = document.getElementById('btn-logout');
+    const loadingState = document.getElementById('loading-state');
+    const serversGrid = document.getElementById('servers-grid');
+    const emptyState = document.getElementById('empty-state');
+
     // انتظار تهيئة Supabase
     const waitForSupabase = setInterval(() => {
       if (typeof getSupabase === 'function') {
@@ -89,95 +129,117 @@
     }, 100);
 
     async function initDashboard() {
-      const authNotice = document.getElementById('auth-notice');
-      const dashboardContent = document.getElementById('dashboard-content');
-      const userGreeting = document.getElementById('user-greeting');
-      const btnLogout = document.getElementById('btn-logout');
+      try {
+        // التحقق من الجلسة الحالية
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-      // التحقق من الجلسة الحالية
-      const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session) {
+          authNotice.classList.remove('hidden');
+          dashboardContent.classList.add('hidden');
+          return;
+        }
 
-      if (!session || error) {
-        authNotice.classList.remove('hidden');
-        dashboardContent.classList.add('hidden');
-        return;
+        authNotice.classList.add('hidden');
+        dashboardContent.classList.remove('hidden');
+
+        // جلب بيانات المستخدم من جدول profiles
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile && !profileError) {
+          userGreeting.textContent = `مرحباً، ${profile.full_name || session.user.email}`;
+        } else {
+          userGreeting.textContent = `مرحباً، ${session.user.email}`;
+        }
+
+        // تسجيل الخروج
+        btnLogout.addEventListener('click', async () => {
+          await supabase.auth.signOut();
+          window.location.href = 'auth.html';
+        });
+
+        // جلب السيرفرات المرتبطة بالمستخدم
+        await loadServers(session.user.id);
+
+      } catch (err) {
+        showError('فشل في تهيئة لوحة التحكم: ' + err.message);
       }
-
-      authNotice.classList.add('hidden');
-      dashboardContent.classList.remove('hidden');
-
-      // جلب بيانات المستخدم من جدول profiles
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile) {
-        userGreeting.textContent = `مرحباً، ${profile.full_name || session.user.email}`;
-      }
-
-      // تسجيل الخروج
-      btnLogout.addEventListener('click', async () => {
-        await supabase.auth.signOut();
-        window.location.href = 'auth.html';
-      });
-
-      // جلب السيرفرات المرتبطة بالمستخدم
-      await loadServers(session.user.id);
     }
 
     async function loadServers(userId) {
-      const grid = document.getElementById('servers-grid');
-      const empty = document.getElementById('empty-state');
+      loadingState.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      serversGrid.innerHTML = '';
+      errorMsg.classList.add('hidden');
 
-      const { data: connections, error } = await supabase
-        .from('server_connections')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      try {
+        const { data: connections, error } = await supabase
+          .from('server_connections')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
 
-      if (error || !connections || connections.length === 0) {
-        empty.classList.remove('hidden');
-        return;
-      }
+        loadingState.classList.add('hidden');
 
-      empty.classList.add('hidden');
-      grid.innerHTML = '';
+        if (error) {
+          showError('خطأ في جلب البيانات: ' + error.message);
+          return;
+        }
 
-      connections.forEach(conn => {
-        const statusColor = conn.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-        const statusText = conn.status === 'active' ? 'متصل' : 'في انتظار الصلاحيات';
+        if (!connections || connections.length === 0) {
+          emptyState.classList.remove('hidden');
+          return;
+        }
 
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="flex justify-between items-start mb-4">
-            <div>
-              <h3 class="text-lg font-bold">${conn.host_type.toUpperCase()}</h3>
-              <p class="text-sm text-slate-500">${conn.host_email}</p>
+        emptyState.classList.add('hidden');
+
+        connections.forEach(conn => {
+          const statusColor = conn.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+          const statusText = conn.status === 'active' ? 'متصل' : 'في انتظار الصلاحيات';
+
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <h3 class="text-lg font-bold">${conn.host_type.toUpperCase()}</h3>
+                <p class="text-sm text-slate-500">${conn.host_email}</p>
+              </div>
+              <span class="badge ${statusColor}">${statusText}</span>
             </div>
-            <span class="badge ${statusColor}">${statusText}</span>
-          </div>
-          <div class="mt-4 space-y-2 text-sm text-slate-600">
-            <div class="flex justify-between"><span>تاريخ الربط:</span> <span class="font-medium">${new Date(conn.created_at).toLocaleDateString('ar-SA')}</span></div>
-            <div class="flex justify-between"><span>الحالة:</span> <span class="font-medium">${conn.status === 'active' ? 'جميع الصلاحيات مفعلة' : 'انتظار منح صلاحيات Subuser على الاستضافة'}</span></div>
-          </div>
-          <div class="mt-6 flex gap-2">
-            ${conn.status === 'active'
-              ? `
-                <button class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700" onclick="window.location.href='chat.html'">إدارة السيرفر</button>
-                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">إيقاف</button>
-              `
-              : `
-                <button class="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-amber-700">إكمال الربط</button>
-                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300" onclick="deleteConnection('${conn.id}')">حذف</button>
-              `
-            }
-          </div>
-        `;
-        grid.appendChild(card);
-      });
+            <div class="mt-4 space-y-2 text-sm text-slate-600">
+              <div class="flex justify-between"><span>تاريخ الربط:</span> <span class="font-medium">${new Date(conn.created_at).toLocaleDateString('ar-SA')}</span></div>
+              <div class="flex justify-between"><span>الحالة:</span> <span class="font-medium">${conn.status === 'active' ? 'جميع الصلاحيات مفعلة' : 'انتظار منح صلاحيات Subuser على الاستضافة'}</span></div>
+            </div>
+            <div class="mt-6 flex gap-2">
+              ${conn.status === 'active'
+                ? `
+                  <button class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700" onclick="window.location.href='chat.html'">إدارة السيرفر</button>
+                  <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">إيقاف</button>
+                `
+                : `
+                  <button class="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-amber-700">إكمال الربط</button>
+                  <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300" onclick="deleteConnection('${conn.id}')">حذف</button>
+                `
+              }
+            </div>
+          `;
+          serversGrid.appendChild(card);
+        });
+
+      } catch (err) {
+        loadingState.classList.add('hidden');
+        showError('حدث خطأ غير متوقع: ' + err.message);
+      }
+    }
+
+    function showError(message) {
+      errorMsg.classList.remove('hidden');
+      errorDetail.textContent = message;
+      loadingState.classList.add('hidden');
     }
 
     async function deleteConnection(id) {
