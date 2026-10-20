@@ -106,7 +106,6 @@
   <script>
     let supabase = null;
 
-    // عناصر الصفحة
     const authNotice = document.getElementById('auth-notice');
     const dashboardContent = document.getElementById('dashboard-content');
     const errorMsg = document.getElementById('error-msg');
@@ -117,19 +116,26 @@
     const serversGrid = document.getElementById('servers-grid');
     const emptyState = document.getElementById('empty-state');
 
-    // انتظار تهيئة Supabase
-    const waitForSupabase = setInterval(() => {
-      if (typeof getSupabase === 'function') {
-        supabase = getSupabase();
-        if (supabase) {
-          clearInterval(waitForSupabase);
-          initDashboard();
-        }
-      }
-    }, 100);
+    function showError(message) {
+      errorMsg.classList.remove('hidden');
+      errorDetail.textContent = message;
+      loadingState.classList.add('hidden');
+      console.error(message);
+    }
 
     async function initDashboard() {
       try {
+        if (typeof getSupabase !== 'function') {
+          showError('مكتبة Supabase غير متاحة. يرجى تحديث الصفحة.');
+          return;
+        }
+
+        supabase = getSupabase();
+        if (!supabase) {
+          showError('فشل تهيئة Supabase. يرجى تحديث الصفحة.');
+          return;
+        }
+
         // التحقق من الجلسة الحالية
         const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -157,8 +163,12 @@
 
         // تسجيل الخروج
         btnLogout.addEventListener('click', async () => {
-          await supabase.auth.signOut();
-          window.location.href = 'auth.html';
+          const { error } = await supabase.auth.signOut();
+          if (!error) {
+            window.location.href = 'auth.html';
+          } else {
+            alert('خطأ في تسجيل الخروج: ' + error.message);
+          }
         });
 
         // جلب السيرفرات المرتبطة بالمستخدم
@@ -236,12 +246,6 @@
       }
     }
 
-    function showError(message) {
-      errorMsg.classList.remove('hidden');
-      errorDetail.textContent = message;
-      loadingState.classList.add('hidden');
-    }
-
     async function deleteConnection(id) {
       if (!confirm('هل أنت متأكد أنك تريد حذف هذا الربط؟')) return;
       const { error } = await supabase
@@ -258,6 +262,11 @@
     function goAuth() {
       window.location.href = 'auth.html';
     }
+
+    // بدء التهيئة عند تحميل الصفحة
+    window.addEventListener('DOMContentLoaded', () => {
+      initDashboard();
+    });
   </script>
 </body>
 </html>

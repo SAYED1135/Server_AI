@@ -3,24 +3,40 @@ const SUPABASE_URL = 'https://clcclgbmzngonhqjikhq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNsY2NsZ2Jtem5nb25ocWppa2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MDQ2MTMsImV4cCI6MjEwODA4MDYxM30.mUl2a5MgP2et3rWIZBNeZfo2XWEvfdEVhZXl4COYitI';
 
 let supabaseClient = null;
+let supabaseReady = false;
+let readyCallbacks = [];
 
 function initSupabase() {
   if (typeof supabase === 'undefined') {
-    console.error('مكتبة Supabase غير محملة.');
-    return null;
+    console.warn('مكتبة Supabase غير محملة بعد');
+    return false;
   }
-  if (!supabaseClient) {
-    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('تم تهيئة اتصال Supabase بنجاح');
+  try {
+    if (!supabaseClient) {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('تم تهيئة اتصال Supabase بنجاح');
+    }
+    supabaseReady = true;
+    // تنفيذ جميع الوظائف المنتظرة
+    readyCallbacks.forEach(cb => cb());
+    readyCallbacks = [];
+    return true;
+  } catch (err) {
+    console.error('فشل تهيئة Supabase:', err);
+    return false;
   }
-  return supabaseClient;
 }
 
 function getSupabase() {
-  if (!supabaseClient) {
-    supabaseClient = initSupabase();
-  }
   return supabaseClient;
+}
+
+function onSupabaseReady(callback) {
+  if (supabaseReady) {
+    callback();
+  } else {
+    readyCallbacks.push(callback);
+  }
 }
 
 // تهيئة فورية إذا كانت المكتبة متاحة
@@ -34,5 +50,11 @@ if (typeof window !== 'undefined') {
         clearInterval(checkSupabase);
       }
     }, 100);
+    // توقف المحاولة بعد 15 ثانية
+    setTimeout(() => {
+      if (!supabaseReady) {
+        console.error('فشل تحميل مكتبة Supabase بعد 15 ثانية');
+      }
+    }, 15000);
   }
 }

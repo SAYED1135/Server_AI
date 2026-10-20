@@ -86,89 +86,110 @@
     let supabase = null;
     let selectedHost = null;
 
-    // انتظار تهيئة Supabase والتحقق من تسجيل الدخول
-    const waitForSupabase = setInterval(() => {
-      if (typeof getSupabase === 'function') {
-        supabase = getSupabase();
-        if (supabase) {
-          clearInterval(waitForSupabase);
-          initConnect();
-        }
+    function initConnect() {
+      if (typeof getSupabase !== 'function') {
+        alert('مكتبة Supabase غير متاحة. يرجى تحديث الصفحة.');
+        return;
       }
-    }, 100);
 
-    async function initConnect() {
+      supabase = getSupabase();
+      if (!supabase) {
+        alert('فشل تهيئة Supabase. يرجى تحديث الصفحة.');
+        return;
+      }
+
       const btnLogout = document.getElementById('btn-logout');
       const btnConnect = document.getElementById('btn-connect');
 
       // التحقق من الجلسة
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = 'auth.html';
-        return;
-      }
-
-      btnLogout.addEventListener('click', async () => {
-        await supabase.auth.signOut();
-        window.location.href = 'auth.html';
-      });
-
-      // اختيار الاستضافة
-      window.selectHost = function(host) {
-        selectedHost = host;
-        document.querySelectorAll('button[onclick^="selectHost"]').forEach(btn => {
-          btn.classList.replace('border-indigo-300', 'border-slate-200');
-          btn.classList.replace('bg-indigo-50', 'bg-white');
-        });
-        event.currentTarget.classList.replace('border-slate-200', 'border-indigo-300');
-        event.currentTarget.classList.replace('bg-white', 'bg-indigo-50');
-        document.getElementById('form-container').classList.remove('hidden');
-      };
-
-      // ربط الحساب
-      btnConnect.addEventListener('click', async () => {
-        const email = document.getElementById('host-email').value;
-        const password = document.getElementById('host-password').value;
-
-        if (!email || !password) {
-          alert('يرجى إدخال البريد الإلكتروني وكلمة المرور.');
-          return;
-        }
-
-        if (!selectedHost) {
-          alert('يرجى اختيار الاستضافة أولاً.');
-          return;
-        }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          alert('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.');
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error || !session) {
           window.location.href = 'auth.html';
           return;
         }
 
-        // حفظ الربط في Supabase
-        const { data, error } = await supabase
-          .from('server_connections')
-          .insert([
-            {
-              user_id: session.user.id,
-              host_type: selectedHost,
-              host_email: email,
-              status: 'pending',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ]);
+        btnLogout.addEventListener('click', async () => {
+          await supabase.auth.signOut();
+          window.location.href = 'auth.html';
+        });
 
-        if (error) {
-          alert('خطأ في الحفظ: ' + error.message);
-          return;
-        }
+        // اختيار الاستضافة
+        window.selectHost = function(host) {
+          selectedHost = host;
+          document.querySelectorAll('button[onclick^="selectHost"]').forEach(btn => {
+            btn.classList.replace('border-indigo-300', 'border-slate-200');
+            btn.classList.replace('bg-indigo-50', 'bg-white');
+          });
+          event.currentTarget.classList.replace('border-slate-200', 'border-indigo-300');
+          event.currentTarget.classList.replace('bg-white', 'bg-indigo-50');
+          document.getElementById('form-container').classList.remove('hidden');
+        };
 
-        alert(`تم تسجيل طلب ربط حساب ${selectedHost.toUpperCase()} بنجاح.\n\nالآن رجاءً قم بمنح الصلاحيات للمنصة على استضافتك، ثم عد إلى لوحة التحكم.`);
-        window.location.href = 'dashboard.html';
+        // ربط الحساب
+        btnConnect.addEventListener('click', async () => {
+          const email = document.getElementById('host-email').value;
+          const password = document.getElementById('host-password').value;
+
+          if (!email || !password) {
+            alert('يرجى إدخال البريد الإلكتروني وكلمة المرور.');
+            return;
+          }
+
+          if (!selectedHost) {
+            alert('يرجى اختيار الاستضافة أولاً.');
+            return;
+          }
+
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            alert('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.');
+            window.location.href = 'auth.html';
+            return;
+          }
+
+          btnConnect.textContent = 'جاري الربط...';
+          btnConnect.disabled = true;
+
+          // حفظ الربط في Supabase
+          const { data, error } = await supabase
+            .from('server_connections')
+            .insert([
+              {
+                user_id: session.user.id,
+                host_type: selectedHost,
+                host_email: email,
+                status: 'pending',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ]);
+
+          btnConnect.textContent = 'ربط الحساب والسيرفر';
+          btnConnect.disabled = false;
+
+          if (error) {
+            alert('خطأ في الحفظ: ' + error.message);
+            return;
+          }
+
+          alert(`تم تسجيل طلب ربط حساب ${selectedHost.toUpperCase()} بنجاح.\n\nالآن رجاءً قم بمنح الصلاحيات للمنصة على استضافتك، ثم عد إلى لوحة التحكم.`);
+          window.location.href = 'dashboard.html';
+        });
       });
+    }
+
+    // بدء التهيئة
+    if (typeof getSupabase === 'function' && getSupabase()) {
+      initConnect();
+    } else {
+      onSupabaseReady(() => {
+        initConnect();
+      });
+      setTimeout(() => {
+        if (!supabase) {
+          alert('فشل تحميل مكتبة Supabase. يرجى تحديث الصفحة.');
+        }
+      }, 10000);
     }
   </script>
 </body>
