@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ربط حساب الاستضافة | سيرفر نور</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }</style>
+</head>
+<body class="bg-slate-50">
+
+  <nav class="bg-white shadow sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">نور</div>
+        <span class="font-bold text-xl text-indigo-700">سيرفر نور</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="dashboard.html" class="text-sm text-slate-600 hover:text-indigo-600">اللوحة الرئيسية</a>
+        <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">تسجيل خروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-3xl mx-auto py-12 px-4">
+    <div class="card">
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold text-slate-900 mb-2">ربط حساب الاستضافة</h2>
+        <p class="text-slate-600">اختر الاستضافة المجانية التي يستضيف عليها سيرفرك، ومنح المنصة صلاحيات محدودة لإدارته نيابة عنك.</p>
+      </div>
+
+      <!-- اختيار الاستضافة -->
+      <div class="grid md:grid-cols-3 gap-4 mb-8">
+        <button class="card p-4 cursor-pointer hover:border-indigo-300 transition border-2 border-slate-200" onclick="selectHost('aternos')">
+          <div class="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-xl mb-2">🖥️</div>
+          <div class="font-bold text-slate-800">Aternos</div>
+          <div class="text-xs text-slate-500">استضافة مجانية ماين كرافت</div>
+        </button>
+        <button class="card p-4 cursor-pointer hover:border-indigo-300 transition border-2 border-slate-200" onclick="selectHost('minehut')">
+          <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl mb-2">⛏️</div>
+          <div class="font-bold text-slate-800">Minehut</div>
+          <div class="text-xs text-slate-500">إنشاء سيرفر ماين كرافت مجاناً</div>
+        </button>
+        <button class="card p-4 cursor-pointer hover:border-indigo-300 transition border-2 border-slate-200 opacity-50" onclick="selectHost('other')">
+          <div class="w-10 h-10 bg-slate-200 text-slate-500 rounded-lg flex items-center justify-center text-xl mb-2">🔌</div>
+          <div class="font-bold text-slate-400">أخرى</div>
+          <div class="text-xs text-slate-400">قريباً</div>
+        </button>
+      </div>
+
+      <!-- نموذج الربط (يظهر بعد الاختيار) -->
+      <div id="form-container" class="hidden space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">بريد st Hosting</label>
+          <input type="email" id="host-email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="example@email.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">كلمة مرور st Hosting</label>
+          <input type="password" id="host-password" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="••••••••">
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h4 class="text-amber-800 font-bold text-sm mb-2">⚠️ خطوة مهمة: منح الصلاحيات (Subuser)</h4>
+          <p class="text-amber-700 text-sm mb-3">بعد تسجيل الدخول، يجب أن تضيف المنصة كـ "Subuser" أو تمنحها صلاحية الوصول على سيرفرك من لوحة控控制 الخاصة بالاستضافة.</p>
+          <ul class="list-disc list-inside text-amber-700 text-sm space-y-1 mb-3">
+            <li>اذهب إلى إعدادات السيرفر على الاستضافة.</li>
+            <li>ابحث عن "Subusers" أو "Access" أو "إضافات".</li>
+            <li>أضف بريد المنصة: <code class="bg-amber-100 px-1 py-0.5 rounded">noor@servernoor.github.io</code></li>
+            <li>امنح الصلاحيات: تشغيل/إيقاف، تثبيت إضافات، تعديل الإعدادات.</li>
+          </ul>
+        </div>
+        <button id="btn-connect" class="w-full btn-primary py-3 font-bold">ربط الحساب والسيرفر</button>
+      </div>
+    </div>
+
+    <div class="mt-8 text-center">
+      <p class="text-sm text-slate-500">بياناتك مؤمنة ومشفرة، ولا تُشارك مع أي طرف ثالث.</p>
+    </div>
+  </div>
+
+  <script>
+    let selectedHost = null;
+
+    function selectHost(host) {
+      selectedHost = host;
+      // تحديث مظهر الأزرار
+      document.querySelectorAll('button[onclick^="selectHost"]').forEach(btn => {
+        btn.classList.replace('border-indigo-300', 'border-slate-200');
+        btn.classList.replace('bg-indigo-50', 'bg-white');
+      });
+      event.currentTarget.classList.replace('border-slate-200', 'border-indigo-300');
+      event.currentTarget.classList.replace('bg-white', 'bg-indigo-50');
+
+      document.getElementById('form-container').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-connect').addEventListener('click', () => {
+      const email = document.getElementById('host-email').value;
+      const password = document.getElementById('host-password').value;
+
+      if (!email || !password) {
+        alert('يرجى إدخال البريد الإلكتروني وكلمة المرور.');
+        return;
+      }
+
+      if (!selectedHost) {
+        alert('يرجى اختيار الاستضافة أولاً.');
+        return;
+      }
+
+      // حفظ الربط في localStorage (مؤقت)
+      const connection = {
+        id: Date.now(),
+        host: selectedHost,
+        email,
+        connectedAt: new Date().toISOString(),
+        status: 'pending_subuser'
+      };
+
+      const connections = JSON.parse(localStorage.getItem('servernoor_connections') || '[]');
+      connections.push(connection);
+      localStorage.setItem('servernoor_connections', JSON.stringify(connections));
+
+      alert(`تم إرسال طلب ربط حساب ${selectedHost.toUpperCase()}.\n\nالآن رجاءً قم بمنح الصلاحيات للمنصة على استضافتك، ثم عد إلى لوحة التحكم.`);
+      window.location.href = 'dashboard.html';
+    });
+  </script>
+</body>
+</html>

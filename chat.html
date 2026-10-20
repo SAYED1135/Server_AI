@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المساعد الذكي | سيرفر نور</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }</style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col">
+
+  <nav class="bg-white shadow h-14 flex items-center justify-between px-4 shrink-0 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold">AI</div>
+      <span class="font-bold text-lg text-indigo-700">المساعد الذكي</span>
+    </div>
+    <button class="text-sm text-slate-600 hover:text-indigo-600">العودة للوحة</button>
+  </nav>
+
+  <div class="flex-1 overflow-hidden flex flex-col">
+    <!-- منطقة الرسائل -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 scroll-smooth">
+      <!-- رسالة ترحيب -->
+      <div class="max-w-[85%] ml-auto">
+        <div class="bg-white p-4 rounded-2xl rounded-tr-none shadow-sm border border-slate-200">
+          <p class="text-sm text-slate-700">أهلاً بك! أنا مساعدك الذكي في سيرفر نور. يمكنني مساعدتك في:</p>
+          <ul class="text-sm text-slate-600 mt-2 space-y-1 list-disc list-inside">
+            <li>تثبيت الإضافات (Plugins) على السيرفر</li>
+            <li>إعادة تشغيل أو إيقاف السيرفر</li>
+            <li>تعديل إعدادات السيرفر (server.properties)</li>
+            <li>حل المشاكل والأخطاء (Crashes, Lag)</li>
+            <li>إدارة اللاعبين والـ Whitelist</li>
+          </ul>
+          <p class="text-sm text-slate-500 mt-3">اكتب ما تريده بالعربية، وسأقوم بمساعدتك فوراً.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 입력 الرسالة -->
+    <div class="border-t border-slate-200 bg-white p-3 shrink-0">
+      <div class="max-w-md mx-auto">
+        <div class="flex gap-2">
+          <input type="text" id="message-input" placeholder="اكتب طلبك هنا... (مثال: أريد تثبيت إضافة EssentialsX)" class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm">
+          <button id="btn-send" class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 transition">إرسال</button>
+        </div>
+        <div class="flex justify-between mt-2 text-xs text-slate-400">
+          <span>المساعد ذكي لكنه ليس مثالياً - راجع كل إجراء قبل تنفيذه على السيرفر.</span>
+          <span class="cursor-pointer text-indigo-600 hover:underline">نصيحة الاستخدام</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('message-input');
+    const btnSend = document.getElementById('btn-send');
+    const messages = document.getElementById('chat-messages');
+
+    // ردود افتراضية بالعربية للمساعد الذكي (نموذج أولي)
+    const aiResponses = {
+      'تثبيت': 'لتثبيت إضافة على السيرفر، يرجى التأكد أولاً من أنك منحت الصلاحيات للمنصة على استضافتك. ثم ارسل لي اسم الإضافة التي تريد تثبيتها وسأوجهك للخطوات.',
+      'إعادة تشغيل': 'جارٍ إعادة تشغيل السيرفر... (هذا إجراء تجريبي في النسخة الأولى). في الإصدار القادم سيتم التنفيذ تلقائياً.',
+      'إيقاف': 'جارٍ إيقاف السيرفر... (إجراء تجريبي).',
+      'خطأ': 'يرجى وصف الخطأ الذي تواجهه (مثل رسالة الخطأ أو ما يحدث عند الدخول للسيرفر) وسأساعدك في تحليله.',
+      'لاج': 'لحل مشكلة اللاج، جرب تقليل عدد الإضافات أو تعديل إعدادات الرؤية (View Distance) في ملف server.properties.',
+      'مرحبا': 'أهلاً بك! كيف يمكنني مساعدتك في سيرفر ماين كرافت الخاص بك اليوم؟',
+      'أهلاً': 'أهلاً بك! كيف يمكنني مساعدتك في سيرفر ماين كرافت الخاص بك اليوم؟',
+    };
+
+    function getAiResponse(text) {
+      const lower = text.toLowerCase();
+      for (const [key, response] of Object.entries(aiResponses)) {
+        if (lower.includes(key)) return response;
+      }
+      return 'لقد استلمت طلبك: "' + text + '". هذا الإصدار الأول من المساعد، وأنا أتعلم كيفية مساعدتك بشكل أفضل. يرجى توضيح طلبك أكثر أو 촬영 شاشة للمشكلة وإرسالها عبر تذكرة دعم.';
+    }
+
+    function appendMessage(text, sender) {
+      const div = document.createElement('div');
+      div.className = `max-w-[85%] ${sender === 'user' ? 'mr-auto' : 'ml-auto'}`;
+      const bubbleClass = sender === 'user'
+        ? 'bg-indigo-600 text-white p-4 rounded-2xl rounded-tl-none shadow-sm'
+        : 'bg-white p-4 rounded-2xl rounded-tr-none shadow-sm border border-slate-200';
+      div.innerHTML = `<div class="${bubbleClass}"><p class="text-sm ${sender === 'user' ? 'text-white' : 'text-slate-700'}">${text}</p></div>`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function handleSend() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      input.value = '';
+
+      // محاكاة رد الذكاء الاصطناعي بعد لحظة
+      setTimeout(() => {
+        const response = getAiResponse(text);
+        appendMessage(response, 'ai');
+      }, 800);
+    }
+
+    btnSend.addEventListener('click', handleSend);
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleSend();
+    });
+  </script>
+</body>
+</html>

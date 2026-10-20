@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم | سيرفر نور</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }</style>
+</head>
+<body class="bg-slate-50">
+
+  <nav class="bg-white shadow sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">نور</div>
+        <span class="font-bold text-xl text-indigo-700">سيرفر نور</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="chat.html" class="text-sm text-slate-600 hover:text-indigo-600">المساعد الذكي</a>
+        <a href="connect.html" class="text-sm text-slate-600 hover:text-indigo-600">ربط استضافة</a>
+        <button onclick="logout()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">تسجيل خروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-7xl mx-auto px-4 py-12">
+    <!-- تنبيه تسجيل الدخول -->
+    <div id="auth-notice" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-4 mb-8">
+      <div class="flex items-start gap-3">
+        <div class="bg-amber-100 text-amber-600 rounded p-1 mt-0.5">⚠️</div>
+        <div>
+          <h4 class="text-amber-800 font-bold text-sm">يجب تسجيل الدخول أولاً</h4>
+          <p class="text-amber-700 text-sm mt-1">الرجاء تسجيل الدخول أو إنشاء حساب لعرض سيرفرواتك.</p>
+        </div>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button onclick="goAuth()" class="text-amber-800 text-sm font-bold hover:underline">اذهب لتسجيل الدخول</button>
+      </div>
+    </div>
+
+    <!-- محتوى اللوحة (يظهر بعد تسجيل الدخول) -->
+    <div id="dashboard-content">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">لوحة التحكم</h1>
+          <p id="user-greeting" class="text-slate-500">مرحباً، مستخدم</p>
+        </div>
+        <a href="connect.html" class="btn-primary px-6 py-2">إضافة سيرفر جديد</a>
+      </div>
+
+      <!-- بطاقات السيرفرات -->
+      <div class="grid md:grid-cols-3 gap-6" id="servers-grid">
+        <!-- تُملأ بواسطة JavaScript -->
+      </div>
+
+      <!-- حالة فارغة -->
+      <div id="empty-state" class="hidden text-center py-16">
+        <div class="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">➕</div>
+        <h3 class="text-lg font-bold text-slate-700 mb-2">لا يوجد سيرفرات مرتبطة بعد</h3>
+        <p class="text-sm text-slate-500 mb-6">ابدأ بربط حساب الاستضافة الخاص بك لإدارة سيرفرك من هنا.</p>
+        <a href="connect.html" class="btn-primary">ربط حساب استضافة</a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="py-8 bg-white border-t border-slate-200 mt-12">
+    <div class="max-w-7xl mx-auto px-4 text-center text-slate-400 text-xs">
+      سيرفر نور — مجاني بالكامل · ملتزم بالشريعة الإسلامية
+    </div>
+  </footer>
+
+  <script>
+    // التحقق من تسجيل الدخول
+    const currentUser = JSON.parse(localStorage.getItem('servernoor_current_user') || 'null');
+    const authNotice = document.getElementById('auth-notice');
+    const dashboardContent = document.getElementById('dashboard-content');
+    const userGreeting = document.getElementById('user-greeting');
+
+    if (!currentUser) {
+      authNotice.classList.remove('hidden');
+      dashboardContent.classList.add('hidden');
+    } else {
+      authNotice.classList.add('hidden');
+      dashboardContent.classList.remove('hidden');
+      userGreeting.textContent = `مرحباً، ${currentUser.name}`;
+    }
+
+    function logout() {
+      localStorage.removeItem('servernoor_current_user');
+      window.location.href = 'auth.html';
+    }
+
+    function goAuth() {
+      window.location.href = 'auth.html';
+    }
+
+    // عرض السيرفرات المرتبطة
+    function renderServers() {
+      const connections = JSON.parse(localStorage.getItem('servernoor_connections') || '[]');
+      const grid = document.getElementById('servers-grid');
+      const empty = document.getElementById('empty-state');
+
+      grid.innerHTML = '';
+
+      if (connections.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+
+      connections.forEach((conn, index) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const statusColor = conn.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+        const statusText = conn.status === 'active' ? 'متصل' : 'في انتظار الصلاحيات';
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-bold">${conn.host.toUpperCase()}</h3>
+              <p class="text-sm text-slate-500">${conn.email}</p>
+            </div>
+            <span class="badge ${statusColor}">${statusText}</span>
+          </div>
+          <div class="mt-4 space-y-2 text-sm text-slate-600">
+            <div class="flex justify-between"><span>تاريخ الربط:</span> <span class="font-medium">${new Date(conn.connectedAt).toLocaleDateString('ar-SA')}</span></div>
+            <div class="flex justify-between"><span>الحالة:</span> <span class="font-medium">${conn.status === 'active' ? 'جميع الصلاحيات مفعلة' : 'انتظار منح صلاحيات Subuser'}</span></div>
+          </div>
+          <div class="mt-6 flex gap-2">
+            ${conn.status === 'active'
+              ? `
+                <button class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">إدارة السيرفر</button>
+                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">إيقاف</button>
+              `
+              : `
+                <button class="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-amber-700">إكمال الربط</button>
+                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">حذف</button>
+              `
+            }
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    renderServers();
+  </script>
+</body>
+</html>
