@@ -1,32 +1,119 @@
 // سيرفر نور - منطق المصادقة باستخدام Supabase Auth حقيقي
 
 let supabase = null;
+let isSupabaseReady = false;
 
-document.addEventListener('DOMContentLoaded', () => {
-  // انتظار تهيئة Supabase
-  const waitForSupabase = setInterval(() => {
+// عناصر الصفحة
+const statusBox = document.getElementById('supabase-status');
+const statusIcon = document.getElementById('supabase-status-icon');
+const statusText = document.getElementById('supabase-status-text');
+const btnLogin = document.getElementById('btn-login-submit');
+const btnRegister = document.getElementById('btn-register-submit');
+
+function setButtonsEnabled(enabled) {
+  if (btnLogin) {
+    btnLogin.disabled = !enabled;
+    btnLogin.classList.toggle('opacity-50', !enabled);
+    btnLogin.classList.toggle('cursor-not-allowed', !enabled);
+  }
+  if (btnRegister) {
+    btnRegister.disabled = !enabled;
+    btnRegister.classList.toggle('opacity-50', !enabled);
+    btnRegister.classList.toggle('cursor-not-allowed', !enabled);
+  }
+}
+
+function updateSupabaseStatus(ready, message) {
+  isSupabaseReady = ready;
+  if (ready) {
+    if (statusBox) statusBox.classList.add('hidden');
+    setButtonsEnabled(true);
+  } else {
+    if (statusBox) {
+      statusBox.classList.remove('hidden');
+      statusBox.className = 'mb-6 p-3 rounded-lg text-sm bg-amber-50 border border-amber-200 text-amber-800';
+    }
+    if (statusIcon) statusIcon.textContent = '⚠️';
+    if (statusText) statusText.textContent = message || 'المكتبة غير جاهزة';
+    setButtonsEnabled(false);
+  }
+}
+
+function waitForSupabase() {
+  return new Promise((resolve) => {
+    // تحقق فوري
     if (typeof getSupabase === 'function') {
-      supabase = getSupabase();
-      if (supabase) {
-        clearInterval(waitForSupabase);
-        initAuth();
+      const client = getSupabase();
+      if (client) {
+        supabase = client;
+        updateSupabaseStatus(true, 'تم تحميل خدمات المنصة بنجاح');
+        resolve(client);
+        return;
       }
     }
-  }, 100);
-});
 
-function initAuth() {
+    // انتظار عبر 콜백
+    if (typeof onSupabaseReady === 'function') {
+      onSupabaseReady(() => {
+        supabase = getSupabase();
+        updateSupabaseStatus(true, 'تم تحميل خدمات المنصة بنجاح');
+        resolve(supabase);
+      });
+    }
+
+    // fallback بعد 10 ثواني
+    setTimeout(() => {
+      if (!supabase) {
+        updateSupabaseStatus(false, 'فشل تحميل خدمات المنصة. يرجى تحديث الصفحة أو التحقق من اتصالك بالإنترنت.');
+        resolve(null);
+      }
+    }, 10000);
+  });
+}
+
+async function ensureProfile(user) {
+  try {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (!existing) {
+      await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+    }
+  } catch (err) {
+    console.error('خطأ في إنشاء الملف الشخصي:', err);
+  }
+}
+
+async function initAuth() {
+  await waitForSupabase();
+
+  if (!supabase) return;
+
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
 
   // التحقق من وجود جلسة موجودة
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       window.location.href = 'dashboard.html';
     }
-  });
+  } catch (err) {
+    console.error('فحص الجلسة:', err);
+  }
 
   // التبديل بين التبويبات
   tabLogin.addEventListener('click', () => {
@@ -54,94 +141,78 @@ function initAuth() {
   // تسجيل الدخول عبر Supabase
   formLogin.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = document.getElementById('btn-login-submit');
-    const originalText = btn.textContent;
-    btn.textContent = 'جاري الدخول...';
-    btn.disabled = true;
-
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    btnLogin.textContent = 'جاري الدخول...';
+    btnLogin.disabled = true;
 
-    if (error) {
-      alert('خطأ: ' + error.message);
-      btn.textContent = originalText;
-      btn.disabled = false;
-      return;
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (data.user) {
-      // إنشاء ملف شخصي للمستخدم إذا لم يكن موجوداً
-      await ensureProfile(data.user);
-      alert('تم تسجيل الدخول بنجاح!');
-      window.location.href = 'dashboard.html';
+      if (error) {
+        alert('خطأ: ' + error.message);
+        btnLogin.textContent = 'تسجيل الدخول';
+        btnLogin.disabled = false;
+        return;
+      }
+
+      if (data.user) {
+        await ensureProfile(data.user);
+        alert('تم تسجيل الدخول بنجاح!');
+        window.location.href = 'dashboard.html';
+      }
+    } catch (err) {
+      alert('خطأ غير متوقع: ' + err.message);
+      btnLogin.textContent = 'تسجيل الدخول';
+      btnLogin.disabled = false;
     }
   });
 
   // إنشاء حساب جديد عبر Supabase
   formRegister.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = document.getElementById('btn-register-submit');
-    const originalText = btn.textContent;
-    btn.textContent = 'جاري إنشاء الحساب...';
-    btn.disabled = true;
-
     const name = document.getElementById('reg-name').value;
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: name
+    btnRegister.textContent = 'جاري إنشاء الحساب...';
+    btnRegister.disabled = true;
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name
+          }
         }
+      });
+
+      if (error) {
+        alert('خطأ: ' + error.message);
+        btnRegister.textContent = 'إنشاء حساب جديد';
+        btnRegister.disabled = false;
+        return;
       }
-    });
 
-    if (error) {
-      alert('خطأ: ' + error.message);
-      btn.textContent = originalText;
-      btn.disabled = false;
-      return;
+      if (data.user) {
+        alert('تم إنشاء حسابك بنجاح! يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب، ثم تسجيل الدخول.');
+        tabLogin.click();
+      }
+    } catch (err) {
+      alert('خطأ غير متوقع: ' + err.message);
+    } finally {
+      btnRegister.textContent = 'إنشاء حساب جديد';
+      btnRegister.disabled = false;
     }
-
-    if (data.user) {
-      alert('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.');
-      // التبديل إلى تبويب تسجيل الدخول تلقائياً
-      tabLogin.click();
-    }
-    btn.textContent = originalText;
-    btn.disabled = false;
   });
 }
 
-// التأكد من وجود سجل في جدول profiles للمستخدم
-async function ensureProfile(user) {
-  try {
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (!existing) {
-      await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-    }
-  } catch (err) {
-    console.error('خطأ في إنشاء الملف الشخصي:', err);
+// بدء التهيئة فور تحميل السكربت
+waitForSupabase().then(() => {
+  if (supabase) {
+    initAuth();
   }
-}
+});

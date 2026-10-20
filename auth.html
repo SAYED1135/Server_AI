@@ -31,11 +31,11 @@
         <p class="text-slate-600 mt-2">أنشئ حساباً أو سجّل دخولك لبدء إدارة سيرفرك.</p>
       </div>
 
-      <!-- رسالة حالة supabase -->
-      <div id="supabase-status" class="hidden mb-6 p-3 rounded-lg text-sm">
+      <!-- حالة تحميل Supabase -->
+      <div id="supabase-status" class="mb-6 p-3 rounded-lg text-sm border">
         <div class="flex items-center gap-2">
           <span id="supabase-status-icon">⏳</span>
-          <span id="supabase-status-text">جاري تحميل الخدمات...</span>
+          <span id="supabase-status-text">جاري تحميل خدمات المنصة...</span>
         </div>
       </div>
 
@@ -73,8 +73,13 @@
           <input type="checkbox" id="reg-agree" required class="mt-1 text-indigo-600">
           <label class="text-sm text-slate-600 leading-relaxed">أوافق على <a href="#" class="text-indigo-600 hover:underline">شروط الاستخدام</a> والالتزام بالشريعة الإسلامية.</label>
         </div>
-        <button type="submit" id="btn-register-submit" class="w-full btn-primary py-3 font-bold" disabled>إنشاء حساب</button>
+        <button type="submit" id="btn-register-submit" class="w-full btn-primary py-3 font-bold" disabled>إنشاء حساب جديد</button>
       </form>
+
+      <div class="mt-6 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+        <p class="font-bold mb-1">ℹ️ ملاحظة هامة:</p>
+        <p>بعد إنشاء الحساب، قد يصلك رسالة تأكيد إلى بريدك الإلكتروني. يرجى 확인 بريدك والنقر على رابط التفعيل قبل تسجيل الدخول.</p>
+      </div>
 
       <p class="text-center text-sm text-slate-500 mt-6">
         خدمة مجانية بالكامل · ملتزمة بالشريعة الإسلامية · بياناتك في Supabase
@@ -83,204 +88,6 @@
   </div>
 
   <script src="js/supabase-client.js"></script>
-  <script>
-    let supabase = null;
-    let isReady = false;
-
-    const statusBox = document.getElementById('supabase-status');
-    const statusIcon = document.getElementById('supabase-status-icon');
-    const statusText = document.getElementById('supabase-status-text');
-    const btnLogin = document.getElementById('btn-login-submit');
-    const btnRegister = document.getElementById('btn-register-submit');
-
-    function setButtonsEnabled(enabled) {
-      btnLogin.disabled = !enabled;
-      btnRegister.disabled = !enabled;
-      btnLogin.classList.toggle('opacity-50', !enabled);
-      btnLogin.classList.toggle('cursor-not-allowed', !enabled);
-      btnRegister.classList.toggle('opacity-50', !enabled);
-      btnRegister.classList.toggle('cursor-not-allowed', !enabled);
-    }
-
-    // تحديث حالة supabase
-    function updateSupabaseStatus(ready, message) {
-      isReady = ready;
-      if (ready) {
-        statusBox.classList.add('hidden');
-        setButtonsEnabled(true);
-      } else {
-        statusBox.classList.remove('hidden');
-        statusIcon.textContent = '⚠️';
-        statusText.textContent = message || 'المكتبة غير جاهزة';
-        statusBox.className = 'mb-6 p-3 rounded-lg text-sm bg-amber-50 border border-amber-200 text-amber-800';
-        setButtonsEnabled(false);
-      }
-    }
-
-    // انتظار تهيئة supabase
-    function waitForSupabase() {
-      return new Promise((resolve) => {
-        if (typeof getSupabase === 'function') {
-          const client = getSupabase();
-          if (client) {
-            supabase = client;
-            updateSupabaseStatus(true, 'تم التحميل بنجاح');
-            resolve(client);
-            return;
-          }
-        }
-        onSupabaseReady(() => {
-          supabase = getSupabase();
-          updateSupabaseStatus(true, 'تم التحميل بنجاح');
-          resolve(supabase);
-        });
-        // fallback بعد 10 ثواني
-        setTimeout(() => {
-          if (!supabase) {
-            updateSupabaseStatus(false, 'فشل تحميل مكتبة Supabase. يرجى تحديث الصفحة أو التحقق من اتصالك بالإنترنت.');
-            resolve(null);
-          }
-        }, 10000);
-      });
-    }
-
-    async function initAuth() {
-      await waitForSupabase();
-
-      if (!supabase) return;
-
-      const tabLogin = document.getElementById('tab-login');
-      const tabRegister = document.getElementById('tab-register');
-      const formLogin = document.getElementById('form-login');
-      const formRegister = document.getElementById('form-register');
-
-      // التحقق من وجود جلسة موجودة
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          window.location.href = 'dashboard.html';
-        }
-      } catch (err) {
-        console.error('فحص الجلسة:', err);
-      }
-
-      // التبديل بين التبويبات
-      tabLogin.addEventListener('click', () => {
-        tabLogin.classList.replace('bg-slate-100', 'bg-indigo-600');
-        tabLogin.classList.replace('text-slate-500', 'text-white');
-        tabLogin.classList.add('shadow-lg');
-        tabRegister.classList.replace('bg-indigo-600', 'bg-slate-100');
-        tabRegister.classList.replace('text-white', 'text-slate-500');
-        tabRegister.classList.remove('shadow-lg');
-        formLogin.classList.remove('hidden');
-        formRegister.classList.add('hidden');
-      });
-
-      tabRegister.addEventListener('click', () => {
-        tabRegister.classList.replace('bg-slate-100', 'bg-indigo-600');
-        tabRegister.classList.replace('text-slate-500', 'text-white');
-        tabRegister.classList.add('shadow-lg');
-        tabLogin.classList.replace('bg-indigo-600', 'bg-slate-100');
-        tabLogin.classList.replace('text-white', 'text-slate-500');
-        tabLogin.classList.remove('shadow-lg');
-        formRegister.classList.remove('hidden');
-        formLogin.classList.add('hidden');
-      });
-
-      // تسجيل الدخول عبر Supabase
-      formLogin.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-
-        btnLogin.textContent = 'جاري الدخول...';
-        btnLogin.disabled = true;
-
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-          if (error) {
-            alert('خطأ: ' + error.message);
-            btnLogin.textContent = 'تسجيل الدخول';
-            btnLogin.disabled = false;
-            return;
-          }
-
-          if (data.user) {
-            await ensureProfile(data.user);
-            alert('تم تسجيل الدخول بنجاح!');
-            window.location.href = 'dashboard.html';
-          }
-        } catch (err) {
-          alert('خطأ غير متوقع: ' + err.message);
-          btnLogin.textContent = 'تسجيل الدخول';
-          btnLogin.disabled = false;
-        }
-      });
-
-      // إنشاء حساب جديد عبر Supabase
-      formRegister.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('reg-name').value;
-        const email = document.getElementById('reg-email').value;
-        const password = document.getElementById('reg-password').value;
-
-        btnRegister.textContent = 'جاري إنشاء الحساب...';
-        btnRegister.disabled = true;
-
-        try {
-          const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: name } }
-          });
-
-          if (error) {
-            alert('خطأ: ' + error.message);
-            btnRegister.textContent = 'إنشاء حساب';
-            btnRegister.disabled = false;
-            return;
-          }
-
-          if (data.user) {
-            alert('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.');
-            tabLogin.click();
-          }
-        } catch (err) {
-          alert('خطأ غير متوقع: ' + err.message);
-        } finally {
-          btnRegister.textContent = 'إنشاء حساب';
-          btnRegister.disabled = false;
-        }
-      });
-    }
-
-    async function ensureProfile(user) {
-      try {
-        const { data: existing } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (!existing) {
-          await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              email: user.email,
-              full_name: user.user_metadata?.full_name || '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-        }
-      } catch (err) {
-        console.error('خطأ في إنشاء الملف الشخصي:', err);
-      }
-    }
-
-    // بدء التهيئة
-    initAuth();
-  </script>
+  <script src="js/auth.js"></script>
 </body>
 </html>

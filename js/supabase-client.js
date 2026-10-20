@@ -17,7 +17,6 @@ function initSupabase() {
       console.log('تم تهيئة اتصال Supabase بنجاح');
     }
     supabaseReady = true;
-    // تنفيذ جميع الوظائف المنتظرة
     readyCallbacks.forEach(cb => cb());
     readyCallbacks = [];
     return true;
@@ -50,7 +49,6 @@ if (typeof window !== 'undefined') {
         clearInterval(checkSupabase);
       }
     }, 100);
-    // توقف المحاولة بعد 15 ثانية
     setTimeout(() => {
       if (!supabaseReady) {
         console.error('فشل تحميل مكتبة Supabase بعد 15 ثانية');
