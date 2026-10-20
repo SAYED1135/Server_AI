@@ -25,14 +25,22 @@ function setButtonsEnabled(enabled) {
 
 function updateSupabaseStatus(ready, message) {
   isSupabaseReady = ready;
+  const readyInd = document.getElementById('supabase-ready-indicator');
   if (ready) {
-    if (statusBox) statusBox.classList.add('hidden');
+    if (statusBox) {
+      statusBox.classList.remove('hidden');
+      statusBox.className = 'mb-6 p-3 rounded-lg text-sm bg-emerald-50 border border-emerald-200 text-emerald-800';
+    }
+    if (statusIcon) statusIcon.textContent = '✓';
+    if (statusText) statusText.textContent = message || 'تم تحميل خدمات المنصة — الأزرار جاهزة';
+    if (readyInd) { readyInd.classList.remove('hidden'); readyInd.classList.add('inline'); }
     setButtonsEnabled(true);
   } else {
     if (statusBox) {
       statusBox.classList.remove('hidden');
       statusBox.className = 'mb-6 p-3 rounded-lg text-sm bg-amber-50 border border-amber-200 text-amber-800';
     }
+    if (readyInd) readyInd.classList.add('hidden');
     if (statusIcon) statusIcon.textContent = '⚠️';
     if (statusText) statusText.textContent = message || 'المكتبة غير جاهزة';
     setButtonsEnabled(false);
