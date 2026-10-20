@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <!-- مكتبة Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }</style>
 </head>
 <body class="bg-slate-50">
@@ -20,7 +22,7 @@
       <div class="flex items-center gap-4">
         <a href="chat.html" class="text-sm text-slate-600 hover:text-indigo-600">المساعد الذكي</a>
         <a href="connect.html" class="text-sm text-slate-600 hover:text-indigo-600">ربط استضافة</a>
-        <button onclick="logout()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">تسجيل خروج</button>
+        <button id="btn-logout" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">تسجيل خروج</button>
       </div>
     </div>
   </nav>
@@ -40,8 +42,8 @@
       </div>
     </div>
 
-    <!-- محتوى اللوحة (يظهر بعد تسجيل الدخول) -->
-    <div id="dashboard-content">
+    <!-- محتوى اللوحة -->
+    <div id="dashboard-content" class="hidden">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 class="text-2xl font-bold text-slate-900">لوحة التحكم</h1>
@@ -52,7 +54,7 @@
 
       <!-- بطاقات السيرفرات -->
       <div class="grid md:grid-cols-3 gap-6" id="servers-grid">
-        <!-- تُملأ بواسطة JavaScript -->
+        <!-- تُملأ من Supabase -->
       </div>
 
       <!-- حالة فارغة -->
@@ -67,76 +69,109 @@
 
   <footer class="py-8 bg-white border-t border-slate-200 mt-12">
     <div class="max-w-7xl mx-auto px-4 text-center text-slate-400 text-xs">
-      سيرفر نور — مجاني بالكامل · ملتزم بالشريعة الإسلامية
+      سيرفر نور — مجاني بالكامل · ملتزم بالشريعة الإسلامية · بياناتك في Supabase
     </div>
   </footer>
 
+  <script src="js/supabase-client.js"></script>
   <script>
-    // التحقق من تسجيل الدخول
-    const currentUser = JSON.parse(localStorage.getItem('servernoor_current_user') || 'null');
-    const authNotice = document.getElementById('auth-notice');
-    const dashboardContent = document.getElementById('dashboard-content');
-    const userGreeting = document.getElementById('user-greeting');
+    let supabase = null;
 
-    if (!currentUser) {
-      authNotice.classList.remove('hidden');
-      dashboardContent.classList.add('hidden');
-    } else {
+    // انتظار تهيئة Supabase
+    const waitForSupabase = setInterval(() => {
+      if (typeof getSupabase === 'function') {
+        supabase = getSupabase();
+        if (supabase) {
+          clearInterval(waitForSupabase);
+          initDashboard();
+        }
+      }
+    }, 100);
+
+    async function initDashboard() {
+      const authNotice = document.getElementById('auth-notice');
+      const dashboardContent = document.getElementById('dashboard-content');
+      const userGreeting = document.getElementById('user-greeting');
+      const btnLogout = document.getElementById('btn-logout');
+
+      // التحقق من الجلسة الحالية
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (!session || error) {
+        authNotice.classList.remove('hidden');
+        dashboardContent.classList.add('hidden');
+        return;
+      }
+
       authNotice.classList.add('hidden');
       dashboardContent.classList.remove('hidden');
-      userGreeting.textContent = `مرحباً، ${currentUser.name}`;
+
+      // جلب بيانات المستخدم من جدول profiles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile) {
+        userGreeting.textContent = `مرحباً، ${profile.full_name || session.user.email}`;
+      }
+
+      // تسجيل الخروج
+      btnLogout.addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.href = 'auth.html';
+      });
+
+      // جلب السيرفرات المرتبطة بالمستخدم
+      await loadServers(session.user.id);
     }
 
-    function logout() {
-      localStorage.removeItem('servernoor_current_user');
-      window.location.href = 'auth.html';
-    }
-
-    function goAuth() {
-      window.location.href = 'auth.html';
-    }
-
-    // عرض السيرفرات المرتبطة
-    function renderServers() {
-      const connections = JSON.parse(localStorage.getItem('servernoor_connections') || '[]');
+    async function loadServers(userId) {
       const grid = document.getElementById('servers-grid');
       const empty = document.getElementById('empty-state');
 
-      grid.innerHTML = '';
+      const { data: connections, error } = await supabase
+        .from('server_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
 
-      if (connections.length === 0) {
+      if (error || !connections || connections.length === 0) {
         empty.classList.remove('hidden');
         return;
       }
 
       empty.classList.add('hidden');
+      grid.innerHTML = '';
 
-      connections.forEach((conn, index) => {
-        const card = document.createElement('div');
-        card.className = 'card';
+      connections.forEach(conn => {
         const statusColor = conn.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
         const statusText = conn.status === 'active' ? 'متصل' : 'في انتظار الصلاحيات';
+
+        const card = document.createElement('div');
+        card.className = 'card';
         card.innerHTML = `
           <div class="flex justify-between items-start mb-4">
             <div>
-              <h3 class="text-lg font-bold">${conn.host.toUpperCase()}</h3>
-              <p class="text-sm text-slate-500">${conn.email}</p>
+              <h3 class="text-lg font-bold">${conn.host_type.toUpperCase()}</h3>
+              <p class="text-sm text-slate-500">${conn.host_email}</p>
             </div>
             <span class="badge ${statusColor}">${statusText}</span>
           </div>
           <div class="mt-4 space-y-2 text-sm text-slate-600">
-            <div class="flex justify-between"><span>تاريخ الربط:</span> <span class="font-medium">${new Date(conn.connectedAt).toLocaleDateString('ar-SA')}</span></div>
-            <div class="flex justify-between"><span>الحالة:</span> <span class="font-medium">${conn.status === 'active' ? 'جميع الصلاحيات مفعلة' : 'انتظار منح صلاحيات Subuser'}</span></div>
+            <div class="flex justify-between"><span>تاريخ الربط:</span> <span class="font-medium">${new Date(conn.created_at).toLocaleDateString('ar-SA')}</span></div>
+            <div class="flex justify-between"><span>الحالة:</span> <span class="font-medium">${conn.status === 'active' ? 'جميع الصلاحيات مفعلة' : 'انتظار منح صلاحيات Subuser على الاستضافة'}</span></div>
           </div>
           <div class="mt-6 flex gap-2">
             ${conn.status === 'active'
               ? `
-                <button class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">إدارة السيرفر</button>
+                <button class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700" onclick="window.location.href='chat.html'">إدارة السيرفر</button>
                 <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">إيقاف</button>
               `
               : `
                 <button class="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-amber-700">إكمال الربط</button>
-                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300">حذف</button>
+                <button class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300" onclick="deleteConnection('${conn.id}')">حذف</button>
               `
             }
           </div>
@@ -145,7 +180,22 @@
       });
     }
 
-    renderServers();
+    async function deleteConnection(id) {
+      if (!confirm('هل أنت متأكد أنك تريد حذف هذا الربط؟')) return;
+      const { error } = await supabase
+        .from('server_connections')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        alert('خطأ في الحذف: ' + error.message);
+      } else {
+        window.location.reload();
+      }
+    }
+
+    function goAuth() {
+      window.location.href = 'auth.html';
+    }
   </script>
 </body>
 </html>

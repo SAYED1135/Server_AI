@@ -1,12 +1,34 @@
-// سيرفر نور - منطق المصادقة (مؤقت باستخدام localStorage)
+// سيرفر نور - منطق المصادقة باستخدام Supabase Auth حقيقي
+
+let supabase = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // انتظار تهيئة Supabase
+  const waitForSupabase = setInterval(() => {
+    if (typeof getSupabase === 'function') {
+      supabase = getSupabase();
+      if (supabase) {
+        clearInterval(waitForSupabase);
+        initAuth();
+      }
+    }
+  }, 100);
+});
+
+function initAuth() {
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
 
-  // التبديل بين تبويب تسجيل الدخول وإنشاء الحساب
+  // التحقق من وجود جلسة موجودة
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      window.location.href = 'dashboard.html';
+    }
+  });
+
+  // التبديل بين التبويبات
   tabLogin.addEventListener('click', () => {
     tabLogin.classList.replace('bg-slate-100', 'bg-indigo-600');
     tabLogin.classList.replace('text-slate-500', 'text-white');
@@ -29,44 +51,97 @@ document.addEventListener('DOMContentLoaded', () => {
     formLogin.classList.add('hidden');
   });
 
-  // تسجيل الدخول
-  formLogin.addEventListener('submit', (e) => {
+  // تسجيل الدخول عبر Supabase
+  formLogin.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = document.getElementById('btn-login-submit');
+    const originalText = btn.textContent;
+    btn.textContent = 'جاري الدخول...';
+    btn.disabled = true;
+
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
 
-    const users = JSON.parse(localStorage.getItem('servernoor_users') || '[]');
-    const user = users.find(u => u.email === email && u.password === password);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    if (user) {
-      localStorage.setItem('servernoor_current_user', JSON.stringify(user));
+    if (error) {
+      alert('خطأ: ' + error.message);
+      btn.textContent = originalText;
+      btn.disabled = false;
+      return;
+    }
+
+    if (data.user) {
+      // إنشاء ملف شخصي للمستخدم إذا لم يكن موجوداً
+      await ensureProfile(data.user);
       alert('تم تسجيل الدخول بنجاح!');
       window.location.href = 'dashboard.html';
-    } else {
-      alert('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
     }
   });
 
-  // إنشاء حساب جديد
-  formRegister.addEventListener('submit', (e) => {
+  // إنشاء حساب جديد عبر Supabase
+  formRegister.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = document.getElementById('btn-register-submit');
+    const originalText = btn.textContent;
+    btn.textContent = 'جاري إنشاء الحساب...';
+    btn.disabled = true;
+
     const name = document.getElementById('reg-name').value;
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
 
-    const users = JSON.parse(localStorage.getItem('servernoor_users') || '[]');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name
+        }
+      }
+    });
 
-    if (users.find(u => u.email === email)) {
-      alert('هذا البريد الإلكتروني مستخدم بالفعل.');
+    if (error) {
+      alert('خطأ: ' + error.message);
+      btn.textContent = originalText;
+      btn.disabled = false;
       return;
     }
 
-    const newUser = { id: Date.now(), name, email, password, createdAt: new Date().toISOString() };
-    users.push(newUser);
-    localStorage.setItem('servernoor_users', JSON.stringify(users));
-    localStorage.setItem('servernoor_current_user', JSON.stringify(newUser));
-
-    alert('تم إنشاء حسابك بنجاح!');
-    window.location.href = 'dashboard.html';
+    if (data.user) {
+      alert('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.');
+      // التبديل إلى تبويب تسجيل الدخول تلقائياً
+      tabLogin.click();
+    }
+    btn.textContent = originalText;
+    btn.disabled = false;
   });
-});
+}
+
+// التأكد من وجود سجل في جدول profiles للمستخدم
+async function ensureProfile(user) {
+  try {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (!existing) {
+      await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+    }
+  } catch (err) {
+    console.error('خطأ في إنشاء الملف الشخصي:', err);
+  }
+}
